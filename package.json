@@ -18,6 +18,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "matrix-js-sdk": "^42.0.0",
     "supermail": "^1.0.5"
   }

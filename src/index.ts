@@ -1,9 +1,12 @@
+import { config as loadEnv } from "dotenv";
 import {
   SuperMail,
   type ListEmailsOptions,
   type ListEmailsResponse,
 } from "supermail";
 import sdk, { EventType, MsgType } from "matrix-js-sdk";
+
+loadEnv();
 
 const imapHost = process.env.EMAIL_HOST_IMAP;
 const smtpHost = process.env.EMAIL_HOST_SMTP;
