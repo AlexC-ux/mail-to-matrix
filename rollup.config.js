@@ -9,7 +9,7 @@ export default {
   // Настройки вывода
   output: {
     // Имя и формат итогового файла
-    file: "dist/index.js",
+    dir: "dist",
     format: "cjs", // CommonJS для Node.js
   },
   plugins: [typescript(), cjs(), resolve(), json()],
