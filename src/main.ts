@@ -1,19 +1,16 @@
 import { config as loadEnv } from "dotenv";
-import * as Mail from "supermail";
-import { ListEmailsOptions, ListEmailsResponse } from "supermail";
+import { EmailClient, ListEmailsOptions, ListEmailsResponse } from "./EmailClient";
 import Matrix, { EventType, MsgType } from "matrix-js-sdk";
 
 loadEnv();
 
 const imapHost = process.env.EMAIL_HOST_IMAP;
-const smtpHost = process.env.EMAIL_HOST_SMTP;
 const username = process.env.EMAIL_USERNAME;
 const password = process.env.EMAIL_PASSWORD;
 const imapPort = process.env.EMAIL_PORT_IMAP;
-const smtpPort = process.env.EMAIL_PORT_SMTP;
-const secureSmtp = process.env.EMAIL_SMTP_SECURE == "true";
 const secureImap = process.env.EMAIL_IMAP_SECURE == "true";
 const receiveInterval = parseInt(process.env.EMAIL_RECV_INTERVAL_MS ?? "15000");
+console.log({receiveInterval})
 const emailFilter = process.env.EMAIL_FILTER;
 const emailPageSize = 10;
 
@@ -34,14 +31,8 @@ if (!password) {
 if (!imapPort) {
   throw new Error("EMAIL_PORT_IMAP is undefinde");
 }
-if (!smtpPort) {
-  throw new Error("EMAIL_PORT_SMTP is undefinde");
-}
 if (!imapHost) {
   throw new Error("EMAIL_HOST_IMAP is undefinde");
-}
-if (!smtpHost) {
-  throw new Error("EMAIL_HOST_SMTP is undefinde");
 }
 
 if (!matrixServerUrl) {
@@ -71,24 +62,14 @@ if (matrixEnableEndToEndEncryption) {
   matrixClient.initRustCrypto();
 }
 
-const emailClient = new Mail.SuperMail({
-  type: "imap",
+const emailClient = new EmailClient({
   imap: {
     user: username,
     password: password,
     host: imapHost,
     port: parseInt(imapPort),
     tls: secureImap,
-  },
-  smtp: {
-    host: smtpHost,
-    port: parseInt(smtpPort),
-    secure: secureSmtp,
-    auth: {
-      user: username,
-      pass: password,
-    },
-  },
+  }
 });
 
 async function getAllUnreadEmails() {
@@ -102,26 +83,26 @@ async function getAllUnreadEmails() {
     }
     const emailMessages: (ListEmailsResponse)["messages"] = [];
     const emailsResponse = await emailClient.listEmails(options);
-    console.log(`Checked inbox.`, { emailsResponse,messages:emailsResponse.messages, options })
+    console.log(`Checked inbox.`, { 
+      totalCount: emailsResponse.totalCount,
+      nextPageToken: emailsResponse.nextPageToken,
+      messagesCount: emailsResponse.messages.length,
+      messages: emailsResponse.messages.map(m => ({ id: m.id, subject: m.subject })),
+      options 
+    })
     emailMessages.push(...emailsResponse.messages);
-    const totalMessages = emailsResponse.totalCount || 0;
-    let nextPageToken = emailsResponse.nextPageToken
-    if (emailsResponse.nextPageToken) {
+    let nextPageToken = emailsResponse.nextPageToken;
+    while (nextPageToken) {
       try {
-        for (
-          let emailsPageIdx = 1;
-          emailsPageIdx < totalMessages / emailPageSize;
-          emailsPageIdx++
-        ) {
-          const emailsPageResponse = await emailClient.listEmails({
-            ...options,
-            pageToken: nextPageToken,
-          });
-          nextPageToken = emailsPageResponse.nextPageToken;
-          emailMessages.push(...emailsPageResponse.messages);
-        }
+        const emailsPageResponse = await emailClient.listEmails({
+          ...options,
+          pageToken: nextPageToken,
+        });
+        nextPageToken = emailsPageResponse.nextPageToken;
+        emailMessages.push(...emailsPageResponse.messages);
       } catch (error) {
-        console.error(error);
+        console.error("Error fetching next page:", error);
+        break;
       }
     }
     for (const email of emailMessages) {
@@ -151,6 +132,7 @@ async function sendMessage(text: string, tnxId?: string) {
 }
 
 async function checkNewEmails(): Promise<void> {
+  console.log(`Checking inbox...`)
   const newMessages = await getAllUnreadEmails();
   console.log(`Checked inbox. ${newMessages.length} new emails.`)
   for (const emailMessage of newMessages) {
