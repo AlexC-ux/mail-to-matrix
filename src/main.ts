@@ -89,7 +89,7 @@ async function getAllUnreadEmails() {
       totalCount: emailsResponse.totalCount,
       nextPageToken: emailsResponse.nextPageToken,
       messagesCount: emailsResponse.messages.length,
-      messages: emailsResponse.messages.map(m => ({ id: m.id, subject: m.subject })),
+      messages: emailsResponse.messages.map(m => ({ id: m.id, subject: m.subject, body: m.body })),
       options
     })
     emailMessages.push(...emailsResponse.messages);
