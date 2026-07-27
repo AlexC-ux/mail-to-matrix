@@ -1,7 +1,8 @@
 import { config as loadEnv } from "dotenv";
 import * as Mail from "supermail";
 import { ListEmailsOptions, ListEmailsResponse } from "supermail";
-import Matrix,{EventType,MsgType} from "matrix-js-sdk";
+import Matrix, { EventType, MsgType } from "matrix-js-sdk";
+import fs from "fs"
 
 loadEnv();
 
@@ -24,6 +25,8 @@ const matrixReceiveRoomId = process.env.MATRIX_RECEIVE_ROOM_ID!;
 const matrixDeviceId = process.env.MATRIX_DEVICE_ID;
 const matrixEnableEndToEndEncryption =
   process.env.MATRIX_USE_ENCTYPTION == "true";
+
+const _lastEmailFilename = '.meta.lastemailid';
 
 if (!username) {
   throw new Error("EMAIL_USERNAME is undefined");
@@ -56,7 +59,7 @@ if (!matrixUserId) {
 if (!matrixReceiveRoomId) {
   throw new Error("MATRIX_RECEIVE_ROOM_ID is undefinde");
 }
-if (!matrixDeviceId) {
+if (matrixEnableEndToEndEncryption && !matrixDeviceId) {
   throw new Error("MATRIX_DEVICE_ID is undefinde");
 }
 
@@ -64,7 +67,7 @@ const matrixClient = Matrix.createClient({
   baseUrl: matrixServerUrl,
   accessToken: matrixAccessToken,
   userId: matrixUserId,
-  deviceId:matrixDeviceId,
+  deviceId: matrixDeviceId,
 });
 
 if (matrixEnableEndToEndEncryption) {
@@ -95,13 +98,14 @@ async function getAllUnreadEmails() {
   try {
     const options: ListEmailsOptions = {
       maxResults: emailPageSize,
-      unreadOnly: true,
+      unreadOnly:true
     };
     if (emailFilter) {
       options.query = emailFilter;
     }
     const emailMessages: (ListEmailsResponse)["messages"] = [];
     const emailsResponse = await emailClient.listEmails(options);
+    console.log(`Checked inbox.`, { emailsResponse,messages:emailsResponse.messages, options })
     emailMessages.push(...emailsResponse.messages);
     const totalMessages = emailsResponse.totalCount || 0;
     if (emailsResponse.nextPageToken) {
@@ -124,10 +128,10 @@ async function getAllUnreadEmails() {
     for (const email of emailMessages) {
       try {
         if (email.id) {
-        await emailClient.markAsRead(email.id)
-      }
+          await emailClient.markAsRead(email.id)
+        }
       } catch (error) {
-       console.error(error) 
+        console.error(error)
       }
     }
     return emailMessages;
@@ -137,17 +141,22 @@ async function getAllUnreadEmails() {
   }
 }
 
-async function checkNewEmails():Promise<void> {
+async function sendMessage(text: string, tnxId?: string) {
+  return await matrixClient.sendEvent<EventType.RoomMessage>(
+    matrixReceiveRoomId,
+    null,
+    EventType.RoomMessage,
+    { body: text, msgtype: MsgType.Text },
+    tnxId,
+  );
+}
+
+async function checkNewEmails(): Promise<void> {
   const newMessages = await getAllUnreadEmails();
+  console.log(`Checked inbox. ${newMessages.length} new emails.`)
   for (const emailMessage of newMessages) {
     try {
-      await matrixClient.sendEvent<EventType.RoomMessage>(
-        matrixReceiveRoomId,
-        null,
-        EventType.RoomMessage,
-        { body: emailMessage.body, msgtype: MsgType.Text },
-        emailMessage.id,
-      );
+      await sendMessage(emailMessage.body, emailMessage.id)
     } catch (error) {
       console.error(emailMessage);
       console.error(error);
@@ -159,12 +168,16 @@ async function main() {
   try {
     // проверка подключения
     await emailClient.listEmails({ maxResults: 1 });
+    console.log('Email checked and working')
+    await sendMessage(`${new Date().toISOString()} запуск сервера`);
+    console.log('Matrix checked and working')
     // интервал проверки писем
-    setTimeout(checkNewEmails, receiveInterval);
+    setInterval(checkNewEmails, receiveInterval);
   } catch (error) {
     console.error(error);
     process.exit(1);
   }
 }
 
+console.log('Launching...')
 main();
