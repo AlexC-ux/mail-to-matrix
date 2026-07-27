@@ -4,8 +4,9 @@ import { Box } from "imap";
 
 // Type definitions for mailparser
 interface MailAddress {
-  address?: string;
-  name?: string;
+  text?: string,
+  html?: string,
+  value?: string[]
 }
 
 interface ParsedMail {
@@ -171,7 +172,7 @@ export class EmailClient {
               const uidList = pageUids.join(",");
               const uidMap = new Map<number, number>();
 
-              const fetchWithUid = (imap: Imap, uidList: string, onUid: (seqno: number, uid: number) => void): Promise<{uid: number, buffer: string}[]> => {
+              const fetchWithUid = (imap: Imap, uidList: string, onUid: (seqno: number, uid: number) => void): Promise<{ uid: number, buffer: string }[]> => {
                 return new Promise((resolve, reject) => {
                   const uidFetch = imap.fetch(uidList, {
                     bodies: [""],
@@ -179,7 +180,7 @@ export class EmailClient {
                     envelope: true,
                   });
 
-                  const buffers: {uid: number, buffer: string}[] = [];
+                  const buffers: { uid: number, buffer: string }[] = [];
                   let currentBuffer = "";
                   let currentUid: number | null = null;
 
@@ -194,7 +195,7 @@ export class EmailClient {
                       stream.on("data", (chunk: Buffer) => {
                         currentBuffer += chunk.toString("utf8");
                       });
-                      stream.on("end", () => {});
+                      stream.on("end", () => { });
                     });
                     msg.on("end", () => {
                       if (currentUid !== null) {
@@ -223,7 +224,7 @@ export class EmailClient {
                         from: parsed.from ? this.formatAddress(parsed.from) : "",
                         to: parsed.to ? this.formatAddressList(parsed.to) : "",
                         body: (parsed.text || parsed.html || "").substring(0, 10000),
-                        date: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
+                        date: parsed.date ? new Date(parsed.date).toUTCString() : new Date().toUTCString(),
                         unread: true,
                       });
                     } catch (err) {
@@ -253,12 +254,7 @@ export class EmailClient {
     if (Array.isArray(address)) {
       return this.formatAddress(address[0]);
     }
-    const addr = address.address;
-    const name = address.name;
-    if (name && addr) {
-      return `"${name}" <${addr}>`;
-    }
-    return addr || "";
+    return address.text || ''
   }
 
   private formatAddressList(addressList: MailAddress | MailAddress[]): string {
@@ -266,7 +262,7 @@ export class EmailClient {
     if (!Array.isArray(addressList)) {
       return this.formatAddress(addressList);
     }
- 
+
     return addressList.map((addr) => this.formatAddress(addr)).join(", ");
   }
 
