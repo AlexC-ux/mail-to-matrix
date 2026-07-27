@@ -2,7 +2,6 @@ import { config as loadEnv } from "dotenv";
 import * as Mail from "supermail";
 import { ListEmailsOptions, ListEmailsResponse } from "supermail";
 import Matrix, { EventType, MsgType } from "matrix-js-sdk";
-import fs from "fs"
 
 loadEnv();
 
@@ -25,9 +24,7 @@ const matrixReceiveRoomId = process.env.MATRIX_RECEIVE_ROOM_ID!;
 const matrixDeviceId = process.env.MATRIX_DEVICE_ID;
 const matrixEnableEndToEndEncryption =
   process.env.MATRIX_USE_ENCTYPTION == "true";
-
-const _lastEmailFilename = '.meta.lastemailid';
-
+  
 if (!username) {
   throw new Error("EMAIL_USERNAME is undefined");
 }
