@@ -1,6 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { EmailClient, ListEmailsOptions, ListEmailsResponse } from "./EmailClient";
 import Matrix, { EventType, MsgType } from "matrix-js-sdk";
+import { RoomMessageEventContent } from "matrix-js-sdk/lib/types";
 
 loadEnv();
 
@@ -10,7 +11,7 @@ const password = process.env.EMAIL_PASSWORD;
 const imapPort = process.env.EMAIL_PORT_IMAP;
 const secureImap = process.env.EMAIL_IMAP_SECURE == "true";
 const receiveInterval = parseInt(process.env.EMAIL_RECV_INTERVAL_MS ?? "15000");
-console.log({receiveInterval})
+console.log({ receiveInterval })
 const emailFilter = process.env.EMAIL_FILTER;
 const emailPageSize = 10;
 
@@ -19,10 +20,10 @@ const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN;
 const matrixUserId = process.env.MATRIX_USERID;
 const matrixReceiveRoomId = process.env.MATRIX_RECEIVE_ROOM_ID!;
 const matrixDeviceId = process.env.MATRIX_DEVICE_ID;
-const matrixMessageAsNotice = process.env.MATRIX_MESSAGE_AS_NOTICE==="true"
+const matrixMessageAsNotice = process.env.MATRIX_MESSAGE_AS_NOTICE === "true"
 const matrixEnableEndToEndEncryption =
   process.env.MATRIX_USE_ENCTYPTION == "true";
-  
+
 if (!username) {
   throw new Error("EMAIL_USERNAME is undefined");
 }
@@ -77,19 +78,19 @@ async function getAllUnreadEmails() {
   try {
     const options: ListEmailsOptions = {
       maxResults: emailPageSize,
-      unreadOnly:true
+      unreadOnly: true
     };
     if (emailFilter) {
       options.query = emailFilter;
     }
     const emailMessages: (ListEmailsResponse)["messages"] = [];
     const emailsResponse = await emailClient.listEmails(options);
-    console.log(`Checked inbox.`, { 
+    console.log(`Checked inbox.`, {
       totalCount: emailsResponse.totalCount,
       nextPageToken: emailsResponse.nextPageToken,
       messagesCount: emailsResponse.messages.length,
       messages: emailsResponse.messages.map(m => ({ id: m.id, subject: m.subject })),
-      options 
+      options
     })
     emailMessages.push(...emailsResponse.messages);
     let nextPageToken = emailsResponse.nextPageToken;
@@ -123,11 +124,17 @@ async function getAllUnreadEmails() {
 }
 
 async function sendMessage(text: string, tnxId?: string) {
+  const content: RoomMessageEventContent = {
+    formatted_body: text,
+    format: "org.matrix.custom.html",
+    body: text,
+    msgtype: matrixMessageAsNotice ? MsgType.Notice : MsgType.Text
+  };
   return await matrixClient.sendEvent<EventType.RoomMessage>(
     matrixReceiveRoomId,
     null,
     EventType.RoomMessage,
-    { body: text, msgtype:matrixMessageAsNotice? MsgType.Notice:MsgType.Text },
+    content,
     tnxId,
   );
 }
@@ -138,7 +145,9 @@ async function checkNewEmails(): Promise<void> {
   console.log(`Checked inbox. ${newMessages.length} new emails.`)
   for (const emailMessage of newMessages) {
     try {
-      await sendMessage(emailMessage.body, emailMessage.id)
+      await sendMessage([`<hr><i>📨 ${new Date().toUTCString()}</i><br><i>📎 ${emailMessage.from}</i><br><b>${(emailMessage.subject || '').replace(/\\n/g, '<br>')}</b>`,
+        '<br>',
+      `${emailMessage.body.replace(/$/gm, '<br/>')}`].join('\n'), emailMessage.id)
     } catch (error) {
       console.error(emailMessage);
       console.error(error);
@@ -151,7 +160,7 @@ async function main() {
     // проверка подключения
     await emailClient.listEmails({ maxResults: 1 });
     console.log('Email checked and working')
-    await sendMessage(`${new Date().toISOString()} запуск сервера`);
+    await sendMessage(`${new Date().toUTCString()} запуск сервера mail-to-matrix`);
     console.log('Matrix checked and working')
     // интервал проверки писем
     setInterval(checkNewEmails, receiveInterval);
