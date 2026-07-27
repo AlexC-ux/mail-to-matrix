@@ -19,6 +19,7 @@ const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN;
 const matrixUserId = process.env.MATRIX_USERID;
 const matrixReceiveRoomId = process.env.MATRIX_RECEIVE_ROOM_ID!;
 const matrixDeviceId = process.env.MATRIX_DEVICE_ID;
+const matrixMessageAsNotice = process.env.MATRIX_MESSAGE_AS_NOTICE==="true"
 const matrixEnableEndToEndEncryption =
   process.env.MATRIX_USE_ENCTYPTION == "true";
   
@@ -126,7 +127,7 @@ async function sendMessage(text: string, tnxId?: string) {
     matrixReceiveRoomId,
     null,
     EventType.RoomMessage,
-    { body: text, msgtype: MsgType.Text },
+    { body: text, msgtype:matrixMessageAsNotice? MsgType.Notice:MsgType.Text },
     tnxId,
   );
 }
