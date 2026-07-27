@@ -145,7 +145,7 @@ async function checkNewEmails(): Promise<void> {
   console.log(`Checked inbox. ${newMessages.length} new emails.`)
   for (const emailMessage of newMessages) {
     try {
-      await sendMessage([`<hr><i>📨 ${(emailMessage.date)}</i><br><i>📎 ${emailMessage.from.replace(/[<>]/g, '')}</i><br><b>${(emailMessage.subject || '').replace(/\\n/g, '<br>')}</b>`,
+      await sendMessage([`<hr><i>🕐 ${(emailMessage.date)}</i><br><i>📨 ${emailMessage.from.replace(/[<>]/g, '')}</i><br><b>${(emailMessage.subject || '').replace(/\\n/g, '<br>')}</b>`,
         '<br>',
       `${emailMessage.body.replace(/$/gm, '<br/>')}`].join('\n'), emailMessage.id)
     } catch (error) {
