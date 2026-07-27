@@ -1,10 +1,7 @@
 import { config as loadEnv } from "dotenv";
-import {
-  SuperMail,
-  type ListEmailsOptions,
-  type ListEmailsResponse,
-} from "supermail";
-import sdk, { EventType, MsgType } from "matrix-js-sdk";
+import * as Mail from "supermail";
+import { ListEmailsOptions, ListEmailsResponse } from "supermail";
+import Matrix,{EventType,MsgType} from "matrix-js-sdk";
 
 loadEnv();
 
@@ -24,6 +21,7 @@ const matrixServerUrl = process.env.MATRIX_SERVER_URL;
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN;
 const matrixUserId = process.env.MATRIX_USERID;
 const matrixReceiveRoomId = process.env.MATRIX_RECEIVE_ROOM_ID!;
+const matrixDeviceId = process.env.MATRIX_DEVICE_ID;
 const matrixEnableEndToEndEncryption =
   process.env.MATRIX_USE_ENCTYPTION == "true";
 
@@ -58,18 +56,22 @@ if (!matrixUserId) {
 if (!matrixReceiveRoomId) {
   throw new Error("MATRIX_RECEIVE_ROOM_ID is undefinde");
 }
+if (!matrixDeviceId) {
+  throw new Error("MATRIX_DEVICE_ID is undefinde");
+}
 
-const matrixClient = sdk.createClient({
+const matrixClient = Matrix.createClient({
   baseUrl: matrixServerUrl,
   accessToken: matrixAccessToken,
   userId: matrixUserId,
+  deviceId:matrixDeviceId,
 });
 
 if (matrixEnableEndToEndEncryption) {
   matrixClient.initRustCrypto();
 }
 
-const emailClient = new SuperMail({
+const emailClient = new Mail.SuperMail({
   type: "imap",
   imap: {
     user: username,
@@ -98,7 +100,7 @@ async function getAllUnreadEmails() {
     if (emailFilter) {
       options.query = emailFilter;
     }
-    const emailMessages: ListEmailsResponse["messages"] = [];
+    const emailMessages: (ListEmailsResponse)["messages"] = [];
     const emailsResponse = await emailClient.listEmails(options);
     emailMessages.push(...emailsResponse.messages);
     const totalMessages = emailsResponse.totalCount || 0;
@@ -119,6 +121,15 @@ async function getAllUnreadEmails() {
         console.error(error);
       }
     }
+    for (const email of emailMessages) {
+      try {
+        if (email.id) {
+        await emailClient.markAsRead(email.id)
+      }
+      } catch (error) {
+       console.error(error) 
+      }
+    }
     return emailMessages;
   } catch (error) {
     console.error(error);
@@ -126,7 +137,7 @@ async function getAllUnreadEmails() {
   }
 }
 
-async function checkNewEmails() {
+async function checkNewEmails():Promise<void> {
   const newMessages = await getAllUnreadEmails();
   for (const emailMessage of newMessages) {
     try {
