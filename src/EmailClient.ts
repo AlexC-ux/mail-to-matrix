@@ -171,7 +171,7 @@ export class EmailClient {
               const uidList = pageUids.join(",");
               const uidMap = new Map<number, number>();
 
-              const fetchWithUid = (imap: Imap, uidList: string, onUid: (seqno: number, uid: number) => void): Promise<string[]> => {
+              const fetchWithUid = (imap: Imap, uidList: string, onUid: (seqno: number, uid: number) => void): Promise<{uid: number, buffer: string}[]> => {
                 return new Promise((resolve, reject) => {
                   const uidFetch = imap.fetch(uidList, {
                     bodies: [""],
@@ -179,21 +179,27 @@ export class EmailClient {
                     envelope: true,
                   });
 
-                  const buffers: string[] = [];
+                  const buffers: {uid: number, buffer: string}[] = [];
+                  let currentBuffer = "";
+                  let currentUid: number | null = null;
 
                   uidFetch.on("message", (msg: MailMessage, seqno: number) => {
-                    let buffer = "";
+                    currentBuffer = "";
+                    currentUid = null;
                     msg.on("attributes", (attrs: FetchAttributes) => {
+                      currentUid = attrs.uid!;
                       onUid(seqno, attrs.uid!);
                     });
                     msg.on("body", (stream: NodeJS.ReadStream) => {
                       stream.on("data", (chunk: Buffer) => {
-                        buffer += chunk.toString("utf8");
+                        currentBuffer += chunk.toString("utf8");
                       });
                       stream.on("end", () => {});
                     });
                     msg.on("end", () => {
-                      buffers.push(buffer);
+                      if (currentUid !== null) {
+                        buffers.push({ uid: currentUid, buffer: currentBuffer });
+                      }
                     });
                   });
 
@@ -207,9 +213,8 @@ export class EmailClient {
               })
                 .then(async (buffers) => {
                   const messages: EmailMessage[] = [];
-                  for (let i = 0; i < buffers.length; i++) {
-                    const buffer = buffers[i];
-                    const uid = uidMap.get(i + 1);
+                  for (const bufferObj of buffers) {
+                    const { uid, buffer } = bufferObj;
                     try {
                       const parsed = await simpleParser(buffer) as ParsedMail;
                       messages.push({
@@ -261,6 +266,7 @@ export class EmailClient {
     if (!Array.isArray(addressList)) {
       return this.formatAddress(addressList);
     }
+ 
     return addressList.map((addr) => this.formatAddress(addr)).join(", ");
   }
 
