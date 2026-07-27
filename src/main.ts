@@ -108,6 +108,7 @@ async function getAllUnreadEmails() {
     console.log(`Checked inbox.`, { emailsResponse,messages:emailsResponse.messages, options })
     emailMessages.push(...emailsResponse.messages);
     const totalMessages = emailsResponse.totalCount || 0;
+    let nextPageToken = emailsResponse.nextPageToken
     if (emailsResponse.nextPageToken) {
       try {
         for (
@@ -117,8 +118,9 @@ async function getAllUnreadEmails() {
         ) {
           const emailsPageResponse = await emailClient.listEmails({
             ...options,
-            pageToken: emailsResponse.nextPageToken,
+            pageToken: nextPageToken,
           });
+          nextPageToken = emailsPageResponse.nextPageToken;
           emailMessages.push(...emailsPageResponse.messages);
         }
       } catch (error) {
