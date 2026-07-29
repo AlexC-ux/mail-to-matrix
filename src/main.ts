@@ -110,6 +110,7 @@ async function getAllUnreadEmails() {
     for (const email of emailMessages) {
       try {
         if (email.id) {
+          console.log(`Marking as read emailid=${email.id}`)
           await emailClient.markAsRead(email.id)
         }
       } catch (error) {
