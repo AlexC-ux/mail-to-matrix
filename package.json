@@ -50,6 +50,7 @@
     "@types/mailparser": "^3.4.6",
     "concurrently": "^10.0.4",
     "eslint-plugin-n": "^18.2.2",
-    "patch-package": "^8.0.1"
+    "patch-package": "^8.0.1",
+    "shx": "^0.4.0"
   }
 }
