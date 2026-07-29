@@ -116,23 +116,30 @@ export class EmailClient {
           }
 
           try {
-            const searchCriteria: string[] = [];
+            const searchCriteria: Array<string|string[]> = [];
             if (unreadOnly) {
               searchCriteria.push("UNSEEN");
             }
             if (query) {
-              const queries = query.split(/\s+/);
-              for (const q of queries) {
-                if (q.toLowerCase().startsWith("from:")) {
-                  searchCriteria.push("FROM", `"${q.substring(5)}"`);
-                } else if (q.toLowerCase().startsWith("subject:")) {
-                  searchCriteria.push("SUBJECT", `"${q.substring(8)}"`);
-                } else if (q.toLowerCase().startsWith("body:")) {
-                  searchCriteria.push("TEXT", `"${q.substring(5)}"`);
-                } else if (q.toLowerCase().startsWith("date:")) {
-                  searchCriteria.push("SINCE", `"${q.substring(5)}"`);
-                } else {
-                  searchCriteria.push("TEXT", `"${q}"`);
+              const queries = query.split(',');
+              for (let index = 0; index < queries.length; index++) {
+                const [expr,value] = queries[index].split(':');
+                switch (expr.toLowerCase()) {
+                  case "from":
+                    searchCriteria.push(["FROM", `"${value}"`]);
+                    break;
+                  case "date":
+                    searchCriteria.push(["SINCE", `"${value}"`]);
+                    break;
+                  case "text":
+                    searchCriteria.push(["TEXT", `"${value}"`]);
+                    break;
+                  case "subject":
+                    searchCriteria.push(["SUBJECT", `"${value}"`]);
+                    break;
+                  default:
+                    searchCriteria.push(["TEXT", `"${value}"`]);
+                    break;
                 }
               }
             }
@@ -147,6 +154,7 @@ export class EmailClient {
             }
 
             const criteria = searchCriteria.length > 0 ? searchCriteria : ["ALL"];
+            console.log(`Searching email`,criteria)
             imap.search(criteria, (_err: Error | null, results: number[]) => {
               const sortedUids = results.sort((a: number, b: number) => b - a);
               const totalCount = sortedUids.length;

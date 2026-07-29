@@ -105,6 +105,20 @@ npm run type-check
 npm run lint
 ```
 
+### Запуск через Docker:
+
+#### Сборка образа:
+```bash
+docker build -t mail-to-matrix:0.0.1 .
+```
+
+#### Запуск контейнера:
+```bash
+docker run --env-file .env mail-to-matrix:0.0.1
+```
+
+*Примечание: файл `.env` должен находиться в корне проекта и содержать все необходимые настройки.*
+
 ## Формат сообщения в Matrix
 
 Каждое письмо отправляется в виде HTML-сообщения с горизонтальной линией:
@@ -224,6 +238,20 @@ npm start
 npm run type-check
 npm run lint
 ```
+
+### Running via Docker:
+
+#### Build image:
+```bash
+docker build -t mail-to-matrix:0.0.1 .
+```
+
+#### Run container:
+```bash
+docker run --env-file .env mail-to-matrix:0.0.1
+```
+
+*Note: `.env` file must be located in the project root and contain all required settings.*
 
 ## Message format in Matrix
 
