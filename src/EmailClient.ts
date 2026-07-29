@@ -126,19 +126,19 @@ export class EmailClient {
                 const [expr,value] = queries[index].split(':');
                 switch (expr.toLowerCase()) {
                   case "from":
-                    searchCriteria.push(["FROM", `"${value}"`]);
+                    searchCriteria.push(["FROM", `${value}`]);
                     break;
                   case "date":
-                    searchCriteria.push(["SINCE", `"${value}"`]);
+                    searchCriteria.push(["SINCE", `${value}`]);
                     break;
                   case "text":
-                    searchCriteria.push(["TEXT", `"${value}"`]);
+                    searchCriteria.push(["TEXT", `${value}`]);
                     break;
                   case "subject":
-                    searchCriteria.push(["SUBJECT", `"${value}"`]);
+                    searchCriteria.push(["SUBJECT", `${value}`]);
                     break;
                   default:
-                    searchCriteria.push(["TEXT", `"${value}"`]);
+                    searchCriteria.push(["TEXT", `${value}`]);
                     break;
                 }
               }
