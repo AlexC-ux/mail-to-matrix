@@ -88,6 +88,45 @@ MATRIX_RECEIVE_ROOM_ID=!roomid:matrix.org
 
 ## Запуск
 
+### На сервере (Docker Hub)
+
+Если вы хотите запустить утилиту на своем сервере, можно использовать готовый образ из Docker Hub:
+
+#### 1. Скачайте образ:
+```bash
+docker pull alexxcux/mail-to-matrix:latest
+```
+
+#### 2. Подготовьте файл `.env`:
+
+Создайте файл `.env` в директории на сервере на основе шаблона `.env.example`:
+```bash
+cp .env.example .env
+```
+
+Отредактируйте `.env` и укажите ваши данные для доступа к почте и Matrix. Этот файл **обязательно** должен существовать в корне проекта, так как он содержит конфиденциальные данные (пароли, токены), которые будут проброшены в контейнер.
+
+**Зачем нужен volume `-.env:/.env:ro`?**
+- Файл `.env` содержит чувствительные данные и не должен быть встроен в образ
+- Volume позволяет подключить файл из хост-системы в контейнер
+- Флаг `:ro` делает файл доступным только для чтения, защищая его от изменений изнутри контейнера
+
+#### 3. Запустите контейнер:
+```bash
+docker run -v ./.env:/.env:ro alexxcux/mail-to-matrix:latest
+```
+
+**Рекомендуемые флаги для продакшена:**
+- `-d` — запуск в фоновом режиме (detached)
+- `--restart unless-stopped` — автоматический перезапуск при падении или перезагрузке сервера
+
+Пример полной команды:
+```bash
+docker run -d --restart unless-stopped -v ./.env:/.env:ro alexxcux/mail-to-matrix:latest
+```
+
+---
+
 ### В режиме разработки (с авто-перезапуском):
 ```bash
 npm run dev
@@ -239,7 +278,46 @@ npm run type-check
 npm run lint
 ```
 
-### Running via Docker:
+### On server (Docker Hub)
+
+Pull the image from Docker Hub:
+
+#### 1. Pull the image:
+```bash
+docker pull alexxcux/mail-to-matrix:latest
+```
+
+#### 2. Prepare `.env` file:
+
+Create `.env` file in your server directory based on `.env.example`:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your email and Matrix credentials. This file **must** exist in the project root as it contains sensitive data (passwords, tokens) that will be mounted into the container.
+
+**Why use volume `-.env:/.env:ro`?**
+- `.env` file contains sensitive data and should not be baked into the image
+- Volume allows mounting the file from the host system into the container
+- The `:ro` flag makes the file read-only, protecting it from changes inside the container
+
+#### 3. Run container:
+```bash
+docker run -v ./.env:/.env:ro alexxcux/mail-to-matrix:latest
+```
+
+**Recommended flags for production:**
+- `-d` — run in background (detached)
+- `--restart unless-stopped` — auto-restart on failure or server reboot
+
+Full example command:
+```bash
+docker run -d --restart unless-stopped -v ./.env:/.env:ro alexxcux/mail-to-matrix:latest
+```
+
+---
+
+### Running via Docker (local build):
 
 #### Build image:
 ```bash
