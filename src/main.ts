@@ -132,7 +132,7 @@ async function checkNewEmails(): Promise<void> {
     try {
       await sendMessage([`<hr>🕐<i> ${(emailMessage.date)}</i><br>📨<i> ${emailMessage.from.replace(/[<>]/g, '')}</i><br><b>${(emailMessage.subject || '').replace(/\\n/g, '<br>')}</b>`,
         '<br>',
-      `${emailMessage.body.replace(/$/gm, '<br/>')}`].join('\n'), emailMessage.id)
+      `${emailMessage.body.replace(/$/gm, '<br/>')}`].join('\n'))
     } catch (error) {
       console.error(emailMessage);
       console.error(error);
