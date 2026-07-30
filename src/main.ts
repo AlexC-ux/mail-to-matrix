@@ -13,7 +13,7 @@ const secureImap = process.env.EMAIL_IMAP_SECURE == "true";
 const receiveInterval = parseInt(process.env.EMAIL_RECV_INTERVAL_MS ?? "15000");
 console.log({ receiveInterval })
 const emailFilter = process.env.EMAIL_FILTER;
-const emailPageSize = 10;
+
 
 const matrixServerUrl = process.env.MATRIX_SERVER_URL;
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN;
@@ -77,37 +77,21 @@ const emailClient = new EmailClient({
 async function getAllUnreadEmails() {
   try {
     const options: ListEmailsOptions = {
-      maxResults: emailPageSize,
       unreadOnly: true
     };
     if (emailFilter) {
       options.query = emailFilter;
     }
-    const emailMessages: (ListEmailsResponse)["messages"] = [];
     const emailsResponse = await emailClient.listEmails(options);
     console.log(`Checked inbox.`, {
       totalCount: emailsResponse.totalCount,
-      nextPageToken: emailsResponse.nextPageToken,
       messagesCount: emailsResponse.messages.length,
       messages: emailsResponse.messages.map(m => ({ id: m.id, subject: m.subject, body: m.body })),
       options
     })
-    emailMessages.push(...emailsResponse.messages);
-    let nextPageToken = emailsResponse.nextPageToken;
-    while (nextPageToken) {
-      try {
-        const emailsPageResponse = await emailClient.listEmails({
-          ...options,
-          pageToken: nextPageToken,
-        });
-        nextPageToken = emailsPageResponse.nextPageToken;
-        emailMessages.push(...emailsPageResponse.messages);
-      } catch (error) {
-        console.error("Error fetching next page:", error);
-        break;
-      }
-    }
+    const emailMessages: (ListEmailsResponse)["messages"] = [...emailsResponse.messages];
     for (const email of emailMessages) {
+
       try {
         if (email.id) {
           console.log(`Marking as read emailid=${email.id}`)
@@ -159,7 +143,7 @@ async function checkNewEmails(): Promise<void> {
 async function main() {
   try {
     // проверка подключения
-    await emailClient.listEmails({ maxResults: 1 });
+    await emailClient.listEmails();
     console.log('Email checked and working')
     await sendMessage(`${new Date().toUTCString()} запуск сервера mail-to-matrix`);
     console.log('Matrix checked and working')

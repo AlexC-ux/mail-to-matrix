@@ -44,16 +44,13 @@ export interface EmailMessage {
 }
 
 export interface ListEmailsOptions {
-  maxResults?: number;
   unreadOnly?: boolean;
   query?: string;
-  pageToken?: string;
 }
 
 export interface ListEmailsResponse {
   messages: EmailMessage[];
   totalCount?: number;
-  nextPageToken?: string;
 }
 
 export interface IMAPConfig {
@@ -101,10 +98,31 @@ export class EmailClient {
     }
   }
 
+  private fetchSingleMessage(imap: Imap, uid: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const uidFetch = imap.fetch(uid, {
+        bodies: [""],
+        struct: true,
+        envelope: true,
+      });
+
+      let buffer = "";
+
+      uidFetch.on("message", (msg: MailMessage) => {
+        msg.on("body", (stream: NodeJS.ReadStream) => {
+          stream.on("data", (chunk: Buffer) => {
+            buffer += chunk.toString("utf8");
+          });
+        });
+      });
+
+      uidFetch.on("error", (err: Error) => reject(err));
+      uidFetch.on("end", () => resolve(buffer));
+    });
+  }
+
   async listEmails(options: ListEmailsOptions = {}): Promise<ListEmailsResponse> {
-    const maxResults = options.maxResults || 10;
     const unreadOnly = options.unreadOnly !== false;
-    const pageToken = options.pageToken;
     const query = options.query;
 
     return await this.withImapConnection(async (imap) => {
@@ -144,110 +162,42 @@ export class EmailClient {
               }
             }
 
-            let startUid = 1;
-            if (pageToken) {
-              try {
-                startUid = parseInt(pageToken, 10);
-              } catch (_e) {
-                startUid = 1;
-              }
-            }
-
             const criteria = searchCriteria.length > 0 ? searchCriteria : ["ALL"];
             console.log(`Searching email`,criteria)
             imap.search(criteria, (_err: Error | null, results: number[]) => {
               const sortedUids = results.sort((a: number, b: number) => b - a);
               const totalCount = sortedUids.length;
 
-              let startIndex = 0;
-              if (pageToken) {
-                startIndex = sortedUids.indexOf(startUid);
-                if (startIndex === -1) {
-                  startIndex = 0;
-                } else {
-                  startIndex++;
-                }
-              }
-
-              const endIndex = Math.min(startIndex + maxResults, sortedUids.length);
-              const pageUids = sortedUids.slice(startIndex, endIndex);
-
-              if (pageUids.length === 0) {
-                resolve({ messages: [], totalCount, nextPageToken: undefined });
+              if (sortedUids.length === 0) {
+                resolve({ messages: [], totalCount });
                 return;
               }
 
-              const uidList = pageUids.join(",");
-              const uidMap = new Map<number, number>();
-
-              const fetchWithUid = (imap: Imap, uidList: string, onUid: (seqno: number, uid: number) => void): Promise<{ uid: number, buffer: string }[]> => {
-                return new Promise((resolve, reject) => {
-                  const uidFetch = imap.fetch(uidList, {
-                    bodies: [""],
-                    struct: true,
-                    envelope: true,
-                  });
-
-                  const buffers: { uid: number, buffer: string }[] = [];
-                  let currentBuffer = "";
-                  let currentUid: number | null = null;
-
-                  uidFetch.on("message", (msg: MailMessage, seqno: number) => {
-                    currentBuffer = "";
-                    currentUid = null;
-                    msg.on("attributes", (attrs: FetchAttributes) => {
-                      currentUid = attrs.uid!;
-                      onUid(seqno, attrs.uid!);
+              (async () => {
+                const messages: EmailMessage[] = [];
+                for (const uid of sortedUids) {
+                  console.log(`Fetching message uid=${uid}`);
+                  try {
+                    const buffer = await this.fetchSingleMessage(imap, uid);
+                    const parsed = await simpleParser(buffer) as ParsedMail;
+                    console.log(`Parsed message uid=${uid} subject="${parsed.subject || ""}"`);
+                    messages.push({
+                      id: uid.toString(),
+                      subject: parsed.subject || "",
+                      from: parsed.from ? this.formatAddress(parsed.from) : "",
+                      to: parsed.to ? this.formatAddressList(parsed.to) : "",
+                      body: (parsed.text || parsed.html || "").substring(0, 10000),
+                      date: parsed.date ? new Date(parsed.date).toUTCString() : new Date().toUTCString(),
+                      unread: true,
                     });
-                    msg.on("body", (stream: NodeJS.ReadStream) => {
-                      stream.on("data", (chunk: Buffer) => {
-                        currentBuffer += chunk.toString("utf8");
-                      });
-                      stream.on("end", () => { });
-                    });
-                    msg.on("end", () => {
-                      if (currentUid !== null) {
-                        buffers.push({ uid: currentUid, buffer: currentBuffer });
-                      }
-                    });
-                  });
-
-                  uidFetch.on("error", (err: Error) => reject(err));
-                  uidFetch.on("end", () => resolve(buffers));
-                });
-              };
-
-              fetchWithUid(imap, uidList, (seqno, uid) => {
-                uidMap.set(seqno, uid);
-              })
-                .then(async (buffers) => {
-                  const messages: EmailMessage[] = [];
-                  for (const bufferObj of buffers) {
-                    const { uid, buffer } = bufferObj;
-                    try {
-                      const parsed = await simpleParser(buffer) as ParsedMail;
-                      messages.push({
-                        id: uid?.toString(),
-                        subject: parsed.subject || "",
-                        from: parsed.from ? this.formatAddress(parsed.from) : "",
-                        to: parsed.to ? this.formatAddressList(parsed.to) : "",
-                        body: (parsed.text || parsed.html || "").substring(0, 10000),
-                        date: parsed.date ? new Date(parsed.date).toUTCString() : new Date().toUTCString(),
-                        unread: true,
-                      });
-                    } catch (err) {
-                      // Skip message if parsing fails
-                    }
+                  } catch (err) {
+                    console.error(`Failed to fetch/parse message uid=${uid}`, err);
+                    // Skip message if fetch/parsing fails
                   }
+                }
 
-                  let nextPageToken: string | undefined;
-                  if (endIndex < sortedUids.length) {
-                    nextPageToken = sortedUids[endIndex].toString();
-                  }
-
-                  resolve({ messages, totalCount, nextPageToken });
-                })
-                .catch(reject);
+                resolve({ messages, totalCount });
+              })().catch(reject);
             });
           } catch (error) {
             reject(error as Error);
