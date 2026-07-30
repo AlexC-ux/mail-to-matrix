@@ -153,7 +153,7 @@ docker build -t mail-to-matrix:0.0.1 .
 
 #### Запуск контейнера:
 ```bash
-docker run --env-file .env mail-to-matrix:0.0.1
+docker run -v ./.env:/.env:ro mail-to-matrix:0.0.1
 ```
 
 *Примечание: файл `.env` должен находиться в корне проекта и содержать все необходимые настройки.*
