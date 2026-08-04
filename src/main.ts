@@ -2,7 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { EmailClient, ListEmailsOptions, ListEmailsResponse } from "./EmailClient";
 import Matrix, { EventType, MsgType } from "matrix-js-sdk";
 import { RoomMessageEventContent } from "matrix-js-sdk/lib/types";
-
+import fs from "fs"
 loadEnv();
 
 const imapHost = process.env.EMAIL_HOST_IMAP;
@@ -23,6 +23,31 @@ const matrixDeviceId = process.env.MATRIX_DEVICE_ID;
 const matrixMessageAsNotice = process.env.MATRIX_MESSAGE_AS_NOTICE === "true"
 const matrixEnableEndToEndEncryption =
   process.env.MATRIX_USE_ENCTYPTION == "true";
+
+const hasRoutingFile = fs.existsSync(".routing.json")
+
+
+const routingRules: {
+  body?: string,
+  subject?: string,
+  from?: string,
+  chatId: string
+}[] = []
+if (hasRoutingFile) {
+  const routingRulesText = fs.readFileSync(".routing.json", 'utf8');
+  const routingsObject = JSON.parse(routingRulesText) as typeof routingRules;
+  for (const route of routingsObject) {
+    if (!(route.body || route.subject || route.from)) {
+      throw new Error(`INVALID ROUTING RULE check body,subject,from: ${JSON.stringify(route)}`)
+    }
+    if (!route.chatId) {
+      throw new Error(`INVALID ROUTING RULE check chatId: ${JSON.stringify(route)}`)
+    }
+    routingRules.push(route)
+  }
+}
+
+console.log({ routingRules })
 
 if (!username) {
   throw new Error("EMAIL_USERNAME is undefined");
@@ -108,7 +133,7 @@ async function getAllUnreadEmails() {
   }
 }
 
-async function sendMessage(text: string, tnxId?: string) {
+async function sendMessage(text: string, tnxId?: string, chatId?: string) {
   const content: RoomMessageEventContent = {
     formatted_body: text,
     format: "org.matrix.custom.html",
@@ -116,7 +141,7 @@ async function sendMessage(text: string, tnxId?: string) {
     msgtype: matrixMessageAsNotice ? MsgType.Notice : MsgType.Text
   };
   return await matrixClient.sendEvent<EventType.RoomMessage>(
-    matrixReceiveRoomId,
+    chatId || matrixReceiveRoomId,
     null,
     EventType.RoomMessage,
     content,
@@ -129,14 +154,46 @@ async function checkNewEmails(): Promise<void> {
   const newMessages = await getAllUnreadEmails();
   console.log(`Checked inbox. ${newMessages.length} new emails.`)
   for (const emailMessage of newMessages) {
-    try {
-      await sendMessage([`<hr>🕐<i> ${(emailMessage.date)}</i><br>📨<i> ${emailMessage.from.replace(/[<>]/g, '')}</i><br><b>${(emailMessage.subject || '').replace(/\\n/g, '<br>')}</b>`,
-        '<br>',
-      `${emailMessage.body.replace(/$/gm, '<br/>')}`].join('\n'))
-    } catch (error) {
-      console.error(emailMessage);
-      console.error(error);
+    const routingRooms: Array<string | undefined> = []
+    if (!hasRoutingFile) {
+      routingRooms.push(undefined)
+    } else {
+      const body = emailMessage.body;
+      const from = emailMessage.from;
+      const subject = emailMessage.subject;
+
+      for (const entry of routingRules) {
+        let resultCheck = false;
+        if (entry.body) {
+          resultCheck = new RegExp(entry.body, 'm').test(body)
+        }
+        if (entry.from) {
+          resultCheck = new RegExp(entry.from, 'm').test(from)
+        }
+        if (entry.subject) {
+          resultCheck = new RegExp(entry.subject, 'm').test(subject)
+        }
+        if (resultCheck) {
+          console.log(`Sending to ${entry.chatId}, rule: ${JSON.stringify(entry)}`)
+          routingRooms.push(entry.chatId)
+        }
+      }
+
     }
+    for (const roomId of routingRooms) {
+      try {
+        await sendMessage([`<hr>🕐<i> ${(emailMessage.date)}</i><br>📨<i> ${emailMessage.from.replace(/[<>]/g, '')}</i><br><b>${(emailMessage.subject || '').replace(/\\n/g, '<br>')}</b>`,
+          '<br>',
+        `${emailMessage.body.replace(/$/gm, '<br/>')}`].join('\n'),
+          undefined,
+          roomId)
+      } catch (error) {
+        console.error(emailMessage);
+        console.error(error);
+      }
+    }
+
+
   }
 }
 

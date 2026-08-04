@@ -1,0 +1,14 @@
+[
+    {
+        "body": ".*?(error|success)",
+        "chatId": "!pPtTi123AEN:matrix.server.ru"
+    },
+    {
+        "from": ".*?(error|success)",
+        "chatId": "!pPtTi123AEN:matrix.server.ru"
+    },
+    {
+        "subject": ".*?(error|success)",
+        "chatId": "!pPtTi123AEN:matrix.server.ru"
+    }
+]

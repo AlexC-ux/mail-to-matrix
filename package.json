@@ -1,6 +1,6 @@
 {
   "name": "my-api",
-  "version": "0.0.0",
+  "version": "0.0.3",
   "scripts": {
     "build": "shx rm -rf dist && npm run lint && tsc --project tsconfig.prod.json",
     "clean-install": "rm -rf ./node_modules && rm -r package-lock.json && npm i",
